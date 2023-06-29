@@ -29,7 +29,6 @@ var (
 	leave    chan string
 	numUsers int
 	history  []Message
-	num      int
 )
 
 func Listener(port string) {
@@ -41,7 +40,6 @@ func Listener(port string) {
 	welcome := string(tmpWelcome)
 	numUsers = 0
 	serv, err := net.Listen("tcp", "localhost:"+port)
-	var wg sync.WaitGroup
 	if err != nil {
 		panic(err)
 	}
@@ -49,22 +47,19 @@ func Listener(port string) {
 
 	go Broadcast()
 	for {
-		if numUsers <= 10 {
-			wg.Add(1)
-			conn, err := serv.Accept()
-			if err != nil {
-				log.Println("Unable to connect")
-				return
-			}
-			num++
-			go ProcessClient(conn, welcome, &wg, &num)
 
+		conn, err := serv.Accept()
+		if err != nil {
+			log.Println("Unable to connect")
+			return
 		}
+
+		go ProcessClient(conn, welcome)
+
 	}
 }
 
-func ProcessClient(conn net.Conn, welcome string, wg *sync.WaitGroup, num *int) {
-	defer wg.Done()
+func ProcessClient(conn net.Conn, welcome string) {
 	reader := bufio.NewReader(os.Stdin)
 
 	conn.Write([]byte(welcome))
@@ -91,25 +86,26 @@ func Broadcast() {
 	for {
 		select {
 		case msg := <-join:
+			fmt.Println("Azaloh")
 			gg.Lock()
 
-			fmt.Fprintf(Clients[0].Conn, msg)
-			fmt.Fprintf(Clients[1].Conn, msg)
-			fmt.Fprintf(Clients[2].Conn, msg)
+			for _, client := range Clients {
+				fmt.Fprintf(client.Conn, msg)
+			}
 			gg.Unlock()
 		case msg := <-message:
 			gg.Lock()
 
-			fmt.Fprintf(Clients[0].Conn, msg)
-			fmt.Fprintf(Clients[1].Conn, msg)
-			fmt.Fprintf(Clients[2].Conn, msg)
+			for _, client := range Clients {
+				fmt.Fprintf(client.Conn, msg)
+			}
 			gg.Unlock()
 		case msg := <-leave:
 			gg.Lock()
 
-			fmt.Fprintf(Clients[0].Conn, msg)
-			fmt.Fprintf(Clients[1].Conn, msg)
-			fmt.Fprintf(Clients[2].Conn, msg)
+			for _, client := range Clients {
+				fmt.Fprintf(client.Conn, msg)
+			}
 			gg.Unlock()
 		}
 	}
