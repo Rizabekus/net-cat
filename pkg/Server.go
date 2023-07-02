@@ -69,7 +69,13 @@ func ProcessClient(conn net.Conn, welcome string) {
 	if err != nil {
 		log.Fatal("Some errors with connection: conn.Read()")
 	}
-
+	for string(buffer[:r-1]) == "" {
+		conn.Write([]byte("[EMPTY NAME IS UNAVAILABLE, ENTER YOUR NAME]:"))
+		r, err = conn.Read(buffer)
+		if err != nil {
+			log.Fatal("Some errors with connection: conn.Read()")
+		}
+	}
 	Client := Client{
 		Name: string(buffer[:r-1]),
 		Addr: conn.LocalAddr().String(),
