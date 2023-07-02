@@ -63,7 +63,7 @@ func Listener(port string) {
 func ProcessClient(conn net.Conn, welcome string) {
 	conn.Write([]byte(welcome))
 	conn.Write([]byte("\n[ENTER YOUR NAME]:"))
-	gg.Lock()
+
 	buffer := make([]byte, 1024)
 	r, err := conn.Read(buffer)
 	if err != nil {
@@ -77,53 +77,54 @@ func ProcessClient(conn net.Conn, welcome string) {
 	}
 
 	Clients = append(Clients, Client)
-	HelloText := Client.Name + " has joined our chat..."
+	HelloText := "\r\n" + Client.Name + " has joined our chat..."
 	currentTime := time.Now().Format("2006-01-02 15:04:05")
+	gg.Lock()
 	join <- Message{
 		Name: Client.Name,
 		Date: currentTime,
 		Text: HelloText,
 	}
+	gg.Unlock()
 
 	if len(history) != 0 {
 		for _, el := range history {
 			conn.Write([]byte(el))
 		}
 	}
-	conn.Write([]byte(HelloText + "\n"))
 
 	input := bufio.NewScanner(conn)
 	currentTime = time.Now().Format("2006-01-02 15:04:05")
 	f := fmt.Sprintf("[%s][%s]:", currentTime, Client.Name)
 	conn.Write([]byte(f))
-	gg.Unlock()
+
 	for input.Scan() {
-		gg.Lock()
 
 		text := input.Text()
-
+		gg.Lock()
 		message <- Message{
 			Name: Client.Name,
 			Date: currentTime,
 			Text: text,
 		}
+		gg.Unlock()
 		currentTime = time.Now().Format("2006-01-02 15:04:05")
 		f = fmt.Sprintf("[%s][%s]:", currentTime, Client.Name)
 		conn.Write([]byte(f))
-		gg.Unlock()
 
 	}
-	gg.Lock()
+
 	LeavingText := Client.Name + " has left the chat..."
 
 	currentTime = time.Now().Format("2006-01-02 15:04:05")
+	gg.Lock()
 	leave <- Message{
 		Name: Client.Name,
 		Date: currentTime,
 		Text: LeavingText,
 	}
-	gg.Unlock()
 	defer conn.Close()
+	gg.Unlock()
 }
 
 func Broadcast() {
