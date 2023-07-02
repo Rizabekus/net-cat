@@ -23,12 +23,11 @@ type Message struct {
 }
 
 var (
-	arr     []net.Conn
 	Clients []Client
 	gg      sync.Mutex
 	join    = make(chan string)
-	message = make(chan string)
-	leave   = make(chan string)
+	message = make(chan Message)
+	leave   = make(chan Message)
 
 	history []string
 )
@@ -64,6 +63,7 @@ func Listener(port string) {
 func ProcessClient(conn net.Conn, welcome string) {
 	conn.Write([]byte(welcome))
 	conn.Write([]byte("\n[ENTER YOUR NAME]:"))
+	gg.Lock()
 	buffer := make([]byte, 1024)
 	r, err := conn.Read(buffer)
 	if err != nil {
@@ -77,57 +77,72 @@ func ProcessClient(conn net.Conn, welcome string) {
 	}
 
 	Clients = append(Clients, Client)
-	arr = append(arr, conn)
+	HelloText := Client.Name + " has joined our chat..."
+	if len(history) != 0 {
+		for _, el := range history {
+			conn.Write([]byte(el + "\n"))
+		}
+	}
+	join <- HelloText
 
-	join <- Client.Name + " has joined our chat..."
-
-	history = append(history, Client.Name+" has joined our chat...")
+	gg.Unlock()
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
+		gg.Lock()
 		text := input.Text()
 		currentTime := time.Now().Format("2006-01-02 15:04:05")
-		text = fmt.Sprintf("[%s][%s]:%s", currentTime, Client.Name, text)
-		history = append(history, text)
-		message <- text
+
+		message <- Message{
+			Name: Client.Name,
+			Date: currentTime,
+			Text: text,
+		}
+		gg.Unlock()
 
 	}
-	buffer2 := make([]byte, 1024)
-	bye, err := conn.Read(buffer2)
-	if err != nil {
-		log.Fatal("Some errors with connection: conn.Read()")
+	gg.Lock()
+	LeavingText := Client.Name + " has left the chat..."
+
+	currentTime := time.Now().Format("2006-01-02 15:04:05")
+	leave <- Message{
+		Name: Client.Name,
+		Date: currentTime,
+		Text: LeavingText,
 	}
-	leave <- " has left the chat..." + string(buffer2[bye-1])
+	gg.Unlock()
 	defer conn.Close()
 }
 
 func Broadcast() {
 	for {
 		select {
-		case msg := <-join:
+		case str := <-join:
 
 			gg.Lock()
 
-			for _, client := range arr {
-
-				client.Write([]byte(msg))
-				client.Write([]byte("\n"))
+			for _, client := range Clients {
+				client.Conn.Write([]byte(str))
 			}
+			history = append(history, str)
 			gg.Unlock()
 		case msg := <-message:
 			gg.Lock()
-
-			for _, client := range arr {
-				client.Write([]byte(msg))
-				client.Write([]byte("\n"))
+			currentTime := time.Now().Format("2006-01-02 15:04:05")
+			text := fmt.Sprintf("[%s][%s]:%s", currentTime, msg.Name, msg.Text)
+			for _, client := range Clients {
+				client.Conn.Write([]byte(text))
 			}
+			history = append(history, msg.Text)
 			gg.Unlock()
 		case msg := <-leave:
 			gg.Lock()
 
-			for _, client := range arr {
-				client.Write([]byte(msg))
-				client.Write([]byte("\n"))
+			for _, client := range Clients {
+				if client.Name != msg.Name {
+					client.Conn.Write([]byte(msg.Text))
+				}
 			}
+			history = append(history, msg.Text)
 			gg.Unlock()
 		}
 	}
