@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"time"
 )
 
 type Client struct {
@@ -29,7 +30,7 @@ var (
 	message = make(chan string)
 	leave   = make(chan string)
 
-	history []Message
+	history []string
 )
 
 func Listener(port string) {
@@ -69,8 +70,6 @@ func ProcessClient(conn net.Conn, welcome string) {
 		log.Fatal("Some errors with connection: conn.Read()")
 	}
 
-	// conn.Write([]byte(string(buffer[:r-1]) + " has joined the chat..."))
-
 	Client := Client{
 		Name: string(buffer[:r-1]),
 		Addr: conn.LocalAddr().String(),
@@ -81,11 +80,23 @@ func ProcessClient(conn net.Conn, welcome string) {
 	arr = append(arr, conn)
 
 	join <- Client.Name + " has joined our chat..."
+
+	history = append(history, Client.Name+" has joined our chat...")
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
-		message <- input.Text()
-	}
+		text := input.Text()
+		currentTime := time.Now().Format("2006-01-02 15:04:05")
+		text = fmt.Sprintf("[%s][%s]:%s", currentTime, Client.Name, text)
+		history = append(history, text)
+		message <- text
 
+	}
+	buffer2 := make([]byte, 1024)
+	bye, err := conn.Read(buffer2)
+	if err != nil {
+		log.Fatal("Some errors with connection: conn.Read()")
+	}
+	leave <- " has left the chat..." + string(buffer2[bye-1])
 	defer conn.Close()
 }
 
@@ -97,23 +108,25 @@ func Broadcast() {
 			gg.Lock()
 
 			for _, client := range arr {
-				client.Write([]byte(msg))
-				fmt.Println(msg)
 
+				client.Write([]byte(msg))
+				client.Write([]byte("\n"))
 			}
 			gg.Unlock()
 		case msg := <-message:
 			gg.Lock()
 
-			for _, client := range Clients {
-				fmt.Fprintf(client.Conn, msg)
+			for _, client := range arr {
+				client.Write([]byte(msg))
+				client.Write([]byte("\n"))
 			}
 			gg.Unlock()
 		case msg := <-leave:
 			gg.Lock()
 
-			for _, client := range Clients {
-				fmt.Fprintf(client.Conn, msg)
+			for _, client := range arr {
+				client.Write([]byte(msg))
+				client.Write([]byte("\n"))
 			}
 			gg.Unlock()
 		}
