@@ -78,14 +78,16 @@ func ProcessClient(conn net.Conn, welcome string) {
 
 	Clients = append(Clients, Client)
 	HelloText := Client.Name + " has joined our chat..."
-	if len(history) != 0 {
-		for _, el := range history {
-			conn.Write([]byte(el + "\n"))
-		}
-	}
+
 	join <- HelloText
 
+	if len(history) != 0 {
+		for _, el := range history {
+			conn.Write([]byte(el))
+		}
+	}
 	gg.Unlock()
+
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
 		gg.Lock()
@@ -121,28 +123,28 @@ func Broadcast() {
 			gg.Lock()
 
 			for _, client := range Clients {
-				client.Conn.Write([]byte(str))
+				client.Conn.Write([]byte(str + "\n"))
 			}
-			history = append(history, str)
+			history = append(history, str+"\n")
 			gg.Unlock()
 		case msg := <-message:
 			gg.Lock()
 			currentTime := time.Now().Format("2006-01-02 15:04:05")
 			text := fmt.Sprintf("[%s][%s]:%s", currentTime, msg.Name, msg.Text)
 			for _, client := range Clients {
-				client.Conn.Write([]byte(text))
+				client.Conn.Write([]byte(text + "\n"))
 			}
-			history = append(history, msg.Text)
+			history = append(history, text+"\n")
 			gg.Unlock()
 		case msg := <-leave:
 			gg.Lock()
 
 			for _, client := range Clients {
 				if client.Name != msg.Name {
-					client.Conn.Write([]byte(msg.Text))
+					client.Conn.Write([]byte(msg.Text + "\n"))
 				}
 			}
-			history = append(history, msg.Text)
+			history = append(history, msg.Text+"\n")
 			gg.Unlock()
 		}
 	}
