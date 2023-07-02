@@ -135,19 +135,24 @@ func Broadcast() {
 			gg.Lock()
 
 			for _, client := range Clients {
+				welcome := fmt.Sprintf("[%s][%s]:", msg.Date, client.Name)
 				if client.Name != msg.Name {
 					client.Conn.Write([]byte(msg.Text + "\n"))
+					client.Conn.Write([]byte(welcome))
 				}
 			}
 			history = append(history, msg.Text+"\n")
 			gg.Unlock()
 		case msg := <-message:
 			gg.Lock()
-			currentTime := time.Now().Format("2006-01-02 15:04:05")
-			text := fmt.Sprintf("[%s][%s]:%s", currentTime, msg.Name, msg.Text)
+			// currentTime := time.Now().Format("2006-01-02 15:04:05")
+			text := fmt.Sprintf("[%s][%s]:%s", msg.Date, msg.Name, msg.Text)
+
 			for _, client := range Clients {
+				w := fmt.Sprintf("[%s][%s]:", msg.Date, client.Name)
 				if client.Name != msg.Name {
-					client.Conn.Write([]byte(text + "\n"))
+					client.Conn.Write([]byte("\r\n" + text + "\n"))
+					client.Conn.Write([]byte(w))
 				}
 			}
 			history = append(history, text+"\n")
