@@ -22,13 +22,14 @@ type Message struct {
 }
 
 var (
-	Clients  []Client
-	gg       sync.Mutex
-	join     chan string
-	message  chan string
-	leave    chan string
-	numUsers int
-	history  []Message
+	arr     []net.Conn
+	Clients []Client
+	gg      sync.Mutex
+	join    = make(chan string)
+	message = make(chan string)
+	leave   = make(chan string)
+
+	history []Message
 )
 
 func Listener(port string) {
@@ -38,7 +39,7 @@ func Listener(port string) {
 		return
 	}
 	welcome := string(tmpWelcome)
-	numUsers = 0
+
 	serv, err := net.Listen("tcp", "localhost:"+port)
 	if err != nil {
 		panic(err)
@@ -60,37 +61,45 @@ func Listener(port string) {
 }
 
 func ProcessClient(conn net.Conn, welcome string) {
-	reader := bufio.NewReader(os.Stdin)
-
 	conn.Write([]byte(welcome))
 	conn.Write([]byte("\n[ENTER YOUR NAME]:"))
-	name, err := reader.ReadString('\n')
+	buffer := make([]byte, 1024)
+	r, err := conn.Read(buffer)
 	if err != nil {
-		log.Println("Some error with reading from terminal with reader.ReadString")
-		return
-
+		log.Fatal("Some errors with connection: conn.Read()")
 	}
 
+	// conn.Write([]byte(string(buffer[:r-1]) + " has joined the chat..."))
+
 	Client := Client{
-		Name: name,
+		Name: string(buffer[:r-1]),
 		Addr: conn.LocalAddr().String(),
 		Conn: conn,
 	}
+
 	Clients = append(Clients, Client)
+	arr = append(arr, conn)
+
 	join <- Client.Name + " has joined our chat..."
-	conn.Close()
-	// *num = *num - 1
+	input := bufio.NewScanner(conn)
+	for input.Scan() {
+		message <- input.Text()
+	}
+
+	defer conn.Close()
 }
 
 func Broadcast() {
 	for {
 		select {
 		case msg := <-join:
-			fmt.Println("Azaloh")
+
 			gg.Lock()
 
-			for _, client := range Clients {
-				fmt.Fprintf(client.Conn, msg)
+			for _, client := range arr {
+				client.Write([]byte(msg))
+				fmt.Println(msg)
+
 			}
 			gg.Unlock()
 		case msg := <-message:
