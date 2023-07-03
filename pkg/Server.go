@@ -182,8 +182,10 @@ func Broadcast() {
 			gg.Lock()
 
 			for _, client := range Clients {
+				w := fmt.Sprintf("[%s][%s]:", msg.Date, client.Name)
 				if client.Name != msg.Name {
-					client.Conn.Write([]byte(msg.Text + "\n"))
+					client.Conn.Write([]byte("\r\n" + msg.Text + "\n"))
+					client.Conn.Write([]byte(w))
 				}
 			}
 			gg.Unlock()
