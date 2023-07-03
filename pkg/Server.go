@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -64,20 +65,22 @@ func ProcessClient(conn net.Conn, welcome string) {
 	conn.Write([]byte(welcome))
 	conn.Write([]byte("\n[ENTER YOUR NAME]:"))
 
-	buffer := make([]byte, 1024)
-	r, err := conn.Read(buffer)
-	if err != nil {
-		log.Fatal("Some errors with connection: conn.Read()")
-	}
-	for string(buffer[:r-1]) == "" {
-		conn.Write([]byte("[EMPTY NAME IS UNAVAILABLE, ENTER YOUR NAME]:"))
-		r, err = conn.Read(buffer)
-		if err != nil {
-			log.Fatal("Some errors with connection: conn.Read()")
-		}
-	}
+	// buffer := make([]byte, 1024)
+	// r, err := conn.Read(buffer)
+	// if err != nil {
+	// 	log.Fatal("Some errors with connection: conn.Read()")
+	// }
+	// for string(buffer[:r-1]) == "" {
+	// 	conn.Write([]byte("[EMPTY NAME IS UNAVAILABLE, ENTER YOUR NAME]:"))
+	// 	r, err = conn.Read(buffer)
+	// 	if err != nil {
+	// 		log.Fatal("Some errors with connection: conn.Read()")
+	// 	}
+	// }
+	buffer := NameCheck(Clients, conn)
+
 	Client := Client{
-		Name: string(buffer[:r-1]),
+		Name: string(buffer),
 		Addr: conn.LocalAddr().String(),
 		Conn: conn,
 	}
@@ -121,6 +124,12 @@ func ProcessClient(conn net.Conn, welcome string) {
 	}
 
 	LeavingText := Client.Name + " has left the chat..."
+	for i, clients := range Clients {
+		if Client.Name == clients.Name {
+			Clients = append(Clients[:i], Clients[i+1:]...)
+			break
+		}
+	}
 
 	currentTime = time.Now().Format("2006-01-02 15:04:05")
 	gg.Lock()
@@ -147,7 +156,6 @@ func Broadcast() {
 					client.Conn.Write([]byte(welcome))
 				}
 			}
-			history = append(history, msg.Text+"\n")
 			gg.Unlock()
 		case msg := <-message:
 			gg.Lock()
@@ -171,8 +179,40 @@ func Broadcast() {
 					client.Conn.Write([]byte(msg.Text + "\n"))
 				}
 			}
-			history = append(history, msg.Text+"\n")
 			gg.Unlock()
 		}
 	}
+}
+
+func NameCheck(Clients []Client, conn net.Conn) string {
+	gg := bufio.NewScanner(conn)
+
+	for gg.Scan() {
+		flag := true
+		text := gg.Text()
+		if len(strings.Trim(text, " \r\n")) == 0 {
+			conn.Write([]byte("[Empty name is unavailable.Write your name]:"))
+			continue
+		}
+		if len(text) > 30 {
+			conn.Write([]byte("[TOO LONG NAME. ENTER YOU NAME]:"))
+			continue
+		}
+		for _, client := range Clients {
+			if client.Name == text {
+				conn.Write([]byte("[That name is already used. Choose another one]:"))
+				flag = false
+				break
+			}
+		}
+		if flag == false {
+			continue
+		} else {
+			return text
+		}
+	}
+	return "AZALOH"
+}
+
+func MessageCheck(msg string) {
 }
