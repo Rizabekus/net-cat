@@ -110,6 +110,13 @@ func ProcessClient(conn net.Conn, welcome string) {
 	for input.Scan() {
 
 		text := input.Text()
+		if len(strings.Trim(text, " \r\n")) == 0 {
+			currentTime = time.Now().Format("2006-01-02 15:04:05")
+			f = fmt.Sprintf("[%s][%s]:", currentTime, Client.Name)
+			conn.Write([]byte(f))
+
+			continue
+		}
 		gg.Lock()
 		message <- Message{
 			Name: Client.Name,
@@ -212,7 +219,4 @@ func NameCheck(Clients []Client, conn net.Conn) string {
 		}
 	}
 	return "AZALOH"
-}
-
-func MessageCheck(msg string) {
 }
